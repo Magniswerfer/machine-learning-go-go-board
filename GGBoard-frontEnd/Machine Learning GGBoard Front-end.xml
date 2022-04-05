@@ -1,0 +1,11 @@
+<xml xmlns="https://developers.google.com/blockly/xml"><block type="procedure_procedure" id="Y0]1}-8EvtcP@+.ed{2K" deletable="false" x="10" y="10"><field name="pname">start</field><statement name="statement"><block type="control_forever_wait_ms" id="T_be:}:Q}bvj7=k05iEV"><statement name="do"><block type="gmessage_send" id="}Y[L4a1I66zl6hMMb4Qo"><field name="KEY">data-open</field><value name="VALUE"><shadow type="math_float_number" id="7V_yB_E]AtS]bHk@gp,S"><field name="number">1</field></shadow><block type="text_input" id="_G2P2azP}2Tdit,ILl)Y"><field name="TEXT">data-open</field></block></value><next><block type="action_wait_ms" id="=S3QS[c;mHfPmLwPX0_M"><value name="NUMBER"><shadow type="math_number" id="?]!fA{Af9#.]X0Lkqw_d"><field name="number">500</field></shadow></value><next><block type="gmessage_send" id="g|)l03R*|S,}$uS1S1,H"><field name="KEY">data</field><value name="VALUE"><shadow type="math_float_number" id="ZS$Rg_iLc-0a-q-4Sg;T"><field name="number">1</field></shadow><block type="text_input" id="`giLNo;fw-K^X$@[D@5k"><field name="TEXT">here is a test</field></block></value><next><block type="action_wait_ms" id="Z6n3H)SOG*h(p#bLJO+c"><value name="NUMBER"><shadow type="math_number" id="NyiaBsD-gQZSKQ(SCSe7"><field name="number">500</field></shadow></value><next><block type="gmessage_send" id="qf;A69|ncAJd^4fWBux{"><field name="KEY">data-closed</field><value name="VALUE"><shadow type="math_float_number" id="Zn^,L)m7g==3e|274xLm"><field name="number">1</field></shadow><block type="text_input" id="IvCEIT,TbP@K/{?a~IW0"><field name="TEXT">data-closed</field></block></value></block></next></block></next></block></next></block></next></block></statement><value name="NAME"><shadow type="math_number" id="Q03G%/Gwd7-YN_/.R;%H"><field name="number">100</field></shadow></value></block></statement></block><gogo xmlns="http://www.w3.org/1999/xhtml"><program_mode>block</program_mode><logo_code>to start
+  forever
+  [
+    sendgmessage "data-open" "data-open"
+    wait 500
+    sendgmessage "data" "here is a test"
+    wait 500
+    sendgmessage "data-closed" "data-closed"
+    wait 100
+  ]
+end</logo_code><file_name>Machine Learning GGBoard Front-end</file_name><timestamp>1649172129147</timestamp><datetime_iso8601>2022-04-05T15:22:09.147Z</datetime_iso8601><locale>en</locale><is_local_file>true</is_local_file></gogo></xml>
