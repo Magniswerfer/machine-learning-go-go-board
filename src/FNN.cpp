@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <GoGoBoardArduino.h>
 #include <Test.h>
+#include <stdexcept>
 
 using namespace std;
 using byte = unsigned char;
@@ -14,14 +15,16 @@ using byte = unsigned char;
  ******************************************************************/
 
 const int PatternCount = 10;
-const int InputNodes = 7;
+const int InputNodes = 10;
 const int HiddenNodes = 8;
-const int OutputNodes = 4;
+const int OutputNodes = 1;
 const float LearningRate = 0.3;
 const float Momentum = 0.9;
 const float InitialWeightMax = 0.5;
-const float Success = 0.05;
-const int MaxTrainingCycle = 5000; // 2147483647
+const float Success = 0.0004;
+const int MaxTrainingCycle = 10000; // 2147483647
+
+bool GoGoConnection = false;
 
 const byte Input[PatternCount][InputNodes] = {
   { 1, 1, 1, 1, 1, 1, 0 },  // 0
@@ -36,18 +39,9 @@ const byte Input[PatternCount][InputNodes] = {
   { 1, 1, 1, 0, 0, 1, 1 }   // 9
 }; 
 
-const byte Target[PatternCount][OutputNodes] = {
-  { 0, 0, 0, 0 },  
-  { 0, 0, 0, 1 }, 
-  { 0, 0, 1, 0 }, 
-  { 0, 0, 1, 1 }, 
-  { 0, 1, 0, 0 }, 
-  { 0, 1, 0, 1 }, 
-  { 0, 1, 1, 0 }, 
-  { 0, 1, 1, 1 }, 
-  { 1, 0, 0, 0 }, 
-  { 1, 0, 0, 1 } 
-};
+byte InputTest[PatternCount][InputNodes];
+
+byte Target[PatternCount][OutputNodes];
 
 /******************************************************************
  * End Network Configuration
@@ -84,7 +78,7 @@ void toTerminal()
     Serial.println (p);      
     Serial.print ("  Input ");
     for( i = 0 ; i < InputNodes ; i++ ) {
-      Serial.print (Input[p][i], DEC);
+      Serial.print (InputTest[p][i], DEC);
       Serial.print (" ");
     }
     Serial.print ("  Target ");
@@ -129,9 +123,9 @@ byte * convertIntToByteArray(int predInt){
     for (byte i=0; i<InputNodes; i++) {
             byte state = bitRead(predInt, i);
             ArrayFromInt[i] = state;
-            Serial.print(state);
+            
         }
-
+/*
     Serial.println();
 
     Serial.print("{");
@@ -142,7 +136,7 @@ byte * convertIntToByteArray(int predInt){
         }
     }
     Serial.println("}");
-
+*/
     return ArrayFromInt;
 }
 
@@ -183,7 +177,7 @@ void trainModel(){
     * Begin training 
     ******************************************************************/
                                         
-    for( TrainingCycle = 1 ; TrainingCycle < MaxTrainingCycle ; TrainingCycle++) {    
+    for( TrainingCycle = 1 ; TrainingCycle <= MaxTrainingCycle ; TrainingCycle++) {    
 
     /******************************************************************
     * Randomize order of training patterns
@@ -209,7 +203,7 @@ void trainModel(){
         for( i = 0 ; i < HiddenNodes ; i++ ) {    
             Accum = HiddenWeights[InputNodes][i] ;
             for( j = 0 ; j < InputNodes ; j++ ) {
-            Accum += Input[p][j] * HiddenWeights[j][i] ;
+            Accum += InputTest[p][j] * HiddenWeights[j][i] ;
             }
             Hidden[i] = 1.0/(1.0 + exp(-Accum)) ;
         }
@@ -250,7 +244,7 @@ void trainModel(){
             ChangeHiddenWeights[InputNodes][i] = LearningRate * HiddenDelta[i] + Momentum * ChangeHiddenWeights[InputNodes][i] ;
             HiddenWeights[InputNodes][i] += ChangeHiddenWeights[InputNodes][i] ;
             for( j = 0 ; j < InputNodes ; j++ ) { 
-            ChangeHiddenWeights[j][i] = LearningRate * Input[p][j] * HiddenDelta[i] + Momentum * ChangeHiddenWeights[j][i];
+            ChangeHiddenWeights[j][i] = LearningRate * InputTest[p][j] * HiddenDelta[i] + Momentum * ChangeHiddenWeights[j][i];
             HiddenWeights[j][i] += ChangeHiddenWeights[j][i] ;
             }
         }
@@ -362,39 +356,101 @@ void predictNew(int predInt){
 /***********************************************************************
  * GOGO BOARD METHODS
 ***********************************************************************/
+bool dataStreamOpen (){
+    bool receivingData = false;
 
-void receiveFromGoGo(String mode="gogo") {
-    String messageContent;
-    bool receivingData;
+    if (GoGoBoard.isGmessageAvailable("data-open")){
+        
+        String DataOpen = GoGoBoard.Gmessage("data-open");     
+        receivingData = true;
+        
+    }else if (GoGoBoard.isGmessageAvailable("data-closed")){
+        
+        String DataClosed = GoGoBoard.Gmessage("data-closed");
+        receivingData = false;
+    }
 
-    if(mode == "gogo"){
-        if (GoGoBoard.isGmessageAvailable("data-open")){
-            
-            String DataOpen = GoGoBoard.Gmessage("data-open");
-            Serial.print("Is data open? ");
-            Serial.println(DataOpen);
-            
-            receivingData = true;
-            
-            while (receivingData == true){
-                if (GoGoBoard.isGmessageAvailable("data-closed")){
-                    receivingData = false;
-                    
-                    String DataClosed = GoGoBoard.Gmessage("data-closed");
-                    Serial.print("Is data open? ");
-                    Serial.println(DataClosed);
+    return receivingData;
+}
 
-                }else if(GoGoBoard.isGmessageAvailable("data")){
-                    messageContent = GoGoBoard.Gmessage("data");
-                    Serial.print("Data from GGBoard: ");
-                    Serial.println(messageContent);
-                    
-                }     
-            }
-        }
-    }else if(mode == "test"){
-        // WRITE A TEST MODE!
-    }    
+void getGoGoConnection(){
+    while(!GoGoConnection){
+        Serial.println("NO CONNECTION TO GOGO BOARD");
+        GoGoConnection = dataStreamOpen();
+        delay(500);
+    }
+    Serial.println("CONNECTED TO GOGO BOARD");
+}
+
+int getDataToPredictFromGoGo(){
+
+    int dataToPredict = 9999;
+    bool dataReceived = false;
+
+    Serial.println();
+    Serial.println("waiting for data from Go Go Board...");
+
+    if(GoGoConnection){
+        while(!dataReceived){
+            if (GoGoBoard.isGmessageAvailable("data-to-predict")){
+                dataToPredict = GoGoBoard.Gmessage("data-to-predict").toInt();
+                Serial.print("Received: ");
+                Serial.println(dataToPredict);
+                dataReceived = true;
+            } 
+        }    
+    }
+    
+    if(dataToPredict != 9999){
+            return dataToPredict;
+    }else{
+        String invalidData = "Invalid data received";
+        Serial.println(invalidData);
+        throw std::invalid_argument("Invalid data received");
+    }
+}
+
+void getTrainingDataFromGoGo(String mode="gogo") {
+    bool dataReceived = false;
+
+    Serial.println();
+    Serial.println("waiting for data from Go Go Board...");
+
+    if(GoGoConnection){
+        while(!dataReceived){
+            if(GoGoBoard.isGmessageAvailable("ready-to-train")){
+                for(i = 0 ; i < PatternCount ; i++){
+                    bool trainingRowReceived = false;
+                    while (!trainingRowReceived){
+                        if (GoGoBoard.isGmessageAvailable("data-to-train")){
+                            // LOG
+                            Serial.print("{ ");
+                            for (int j=0; j<InputNodes; j++) {
+                                InputTest[i][j] = convertIntToByteArray(GoGoBoard.Gmessage("data-to-train").toInt())[j];
+                                // LOG THE INPUTS HERE:
+                                Serial.print(InputTest[i][j]);
+                                Serial.print(", ");
+                            }
+                            Serial.print("},");
+                            trainingRowReceived = true;
+
+                            bool categoryReceived = false;
+                                while (!categoryReceived){
+                                    if (GoGoBoard.isGmessageAvailable("data-to-train-category")){
+                                        int output = GoGoBoard.Gmessage("data-to-train-category").toInt();
+                                        Serial.print(" --- category: ");
+                                        Serial.println(output);
+                                        Target[i][1] = output;
+                                        categoryReceived = true;
+                                    }
+                                }
+                        }
+                    }
+                }  
+                dataReceived = true;   
+            } 
+        }    
+    }
 }
 
 /***********************************************************************
@@ -416,16 +472,21 @@ void setup(){
 
 void loop (){
 
-    receiveFromGoGo();
+    if(!GoGoConnection){
+        getGoGoConnection();
+    }
+
+    getTrainingDataFromGoGo();
+
     
-    //initModel();
+    initModel();
 
-    //trainModel();
+    trainModel();
 
-    //predictNew(12);
+    //predictNew(getDataToPredictFromGoGo());
 
     // When model is trained, continue:
-    /*
+    
     Serial.println ();
     Serial.println(); 
     Serial.print ("TrainingCycle: ");
@@ -443,7 +504,7 @@ void loop (){
     Serial.println ();  
     ReportEvery1000 = 1;
     return;
-    */
+    
     
     
 }
