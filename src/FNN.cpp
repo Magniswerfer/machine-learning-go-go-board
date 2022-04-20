@@ -4,8 +4,8 @@
 #include <math.h>
 #include <Arduino.h>
 #include <GoGoBoardArduino.h>
-#include <Test.h>
 #include <stdexcept>
+#include <ml.h>
 
 using namespace std;
 using byte = unsigned char;
@@ -18,14 +18,16 @@ const int PatternCount = 10;
 const int InputNodes = 10;
 const int HiddenNodes = 8;
 const int OutputNodes = 1;
-const float LearningRate = 0.3;
+const float LearningRate = 0.5;
 const float Momentum = 0.9;
 const float InitialWeightMax = 0.5;
 const float Success = 0.0004;
 const int MaxTrainingCycle = 10000; // 2147483647
 
 bool GoGoConnection = false;
+bool model;
 
+/*
 const byte Input[PatternCount][InputNodes] = {
   { 1, 1, 1, 1, 1, 1, 0 },  // 0
   { 0, 0, 1, 1, 0, 0, 0 },  // 1
@@ -38,8 +40,9 @@ const byte Input[PatternCount][InputNodes] = {
   { 1, 1, 1, 1, 1, 1, 1 },  // 8
   { 1, 1, 1, 0, 0, 1, 1 }   // 9
 }; 
+*/
 
-byte InputTest[PatternCount][InputNodes];
+byte Input[PatternCount][InputNodes];
 
 byte Target[PatternCount][OutputNodes];
 
@@ -78,7 +81,7 @@ void toTerminal()
     Serial.println (p);      
     Serial.print ("  Input ");
     for( i = 0 ; i < InputNodes ; i++ ) {
-      Serial.print (InputTest[p][i], DEC);
+      Serial.print (Input[p][i], DEC);
       Serial.print (" ");
     }
     Serial.print ("  Target ");
@@ -203,7 +206,7 @@ void trainModel(){
         for( i = 0 ; i < HiddenNodes ; i++ ) {    
             Accum = HiddenWeights[InputNodes][i] ;
             for( j = 0 ; j < InputNodes ; j++ ) {
-            Accum += InputTest[p][j] * HiddenWeights[j][i] ;
+            Accum += Input[p][j] * HiddenWeights[j][i] ;
             }
             Hidden[i] = 1.0/(1.0 + exp(-Accum)) ;
         }
@@ -244,7 +247,7 @@ void trainModel(){
             ChangeHiddenWeights[InputNodes][i] = LearningRate * HiddenDelta[i] + Momentum * ChangeHiddenWeights[InputNodes][i] ;
             HiddenWeights[InputNodes][i] += ChangeHiddenWeights[InputNodes][i] ;
             for( j = 0 ; j < InputNodes ; j++ ) { 
-            ChangeHiddenWeights[j][i] = LearningRate * InputTest[p][j] * HiddenDelta[i] + Momentum * ChangeHiddenWeights[j][i];
+            ChangeHiddenWeights[j][i] = LearningRate * Input[p][j] * HiddenDelta[i] + Momentum * ChangeHiddenWeights[j][i];
             HiddenWeights[j][i] += ChangeHiddenWeights[j][i] ;
             }
         }
@@ -388,9 +391,12 @@ int getDataToPredictFromGoGo(){
     bool dataReceived = false;
 
     Serial.println();
-    Serial.println("waiting for data from Go Go Board...");
+    Serial.println("waiting for data for prediction from GoGo Board...");
 
     if(GoGoConnection){
+
+        GoGoBoard.sendGmessage("receive-data-to-predict", GoGoBoard.Gmessage("receive-data-to-predict"));
+
         while(!dataReceived){
             if (GoGoBoard.isGmessageAvailable("data-to-predict")){
                 dataToPredict = GoGoBoard.Gmessage("data-to-predict").toInt();
@@ -399,6 +405,8 @@ int getDataToPredictFromGoGo(){
                 dataReceived = true;
             } 
         }    
+    }else{
+        Serial.println("NO CONNECTION TO GOGO BOARD");
     }
     
     if(dataToPredict != 9999){
@@ -424,11 +432,14 @@ void getTrainingDataFromGoGo(String mode="gogo") {
                     while (!trainingRowReceived){
                         if (GoGoBoard.isGmessageAvailable("data-to-train")){
                             // LOG
+                            Serial.print("Data-point: ");
+                            Serial.print(i+1);
+                            Serial.print("/10: ");
                             Serial.print("{ ");
                             for (int j=0; j<InputNodes; j++) {
-                                InputTest[i][j] = convertIntToByteArray(GoGoBoard.Gmessage("data-to-train").toInt())[j];
+                                Input[i][j] = convertIntToByteArray(GoGoBoard.Gmessage("data-to-train").toInt())[j];
                                 // LOG THE INPUTS HERE:
-                                Serial.print(InputTest[i][j]);
+                                Serial.print(Input[i][j]);
                                 Serial.print(", ");
                             }
                             Serial.print("},");
@@ -440,7 +451,7 @@ void getTrainingDataFromGoGo(String mode="gogo") {
                                         int output = GoGoBoard.Gmessage("data-to-train-category").toInt();
                                         Serial.print(" --- category: ");
                                         Serial.println(output);
-                                        Target[i][1] = output;
+                                        Target[i][0] = output;
                                         categoryReceived = true;
                                     }
                                 }
@@ -458,6 +469,7 @@ void getTrainingDataFromGoGo(String mode="gogo") {
 ***********************************************************************/
 
 void setup(){
+    model = false;
 
     GoGoBoard.begin();
     Serial.begin(115200);
@@ -475,36 +487,38 @@ void loop (){
     if(!GoGoConnection){
         getGoGoConnection();
     }
-
-    getTrainingDataFromGoGo();
-
+    if(!model){
+        getTrainingDataFromGoGo();
     
-    initModel();
+        initModel();
 
-    trainModel();
+        trainModel();
 
-    //predictNew(getDataToPredictFromGoGo());
-
-    // When model is trained, continue:
+        // When model is trained, continue:
     
-    Serial.println ();
-    Serial.println(); 
-    Serial.print ("TrainingCycle: ");
-    Serial.print (TrainingCycle);
-    Serial.print ("  Error = ");
-    Serial.println (Error, 5);
+        Serial.println ();
+        Serial.println(); 
+        Serial.print ("TrainingCycle: ");
+        Serial.print (TrainingCycle);
+        Serial.print ("  Error = ");
+        Serial.println (Error, 5);
 
-    toTerminal();
+        toTerminal();
 
-    Serial.println ();  
-    Serial.println ();
-    Serial.println ("Training Set Solved! ");
-    Serial.println ("--------"); 
-    Serial.println ();
-    Serial.println ();  
-    ReportEvery1000 = 1;
+        Serial.println ();  
+        Serial.println ();
+        Serial.println ("Training Set Solved! ");
+        Serial.println ("--------"); 
+        Serial.println ();
+        Serial.println ();  
+        ReportEvery1000 = 1;
+    }
+
+    if(Error <= Success){
+        model = true;
+        predictNew(getDataToPredictFromGoGo());
+    }
+
     return;
-    
-    
-    
+
 }
